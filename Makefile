@@ -9,21 +9,31 @@
 
 PROJECT = cyberchrist
 HX = haxe -main CyberChrist -cp src -cp ../panda
-OUT = bin
+SRC = src/*.hx src/cyberchrist/*.hx
+OUT = ./
 
 all: build
 
-neko: cyberchrist/*.hx
+app: $(SRC)
+	haxe -js test/src/js/cyberchrist.js cyberchrist.App \
+		-cp src -cp ../hx.html5 -cp ../google \
+		-D noEmbedJS \
+		#-D CYBERCHRIST_DEBUG
+
+neko: $(SRC)
 	$(HX) -neko $(OUT)/$(PROJECT).n
 
-neko-exe: neko
-	haxelib run xcross $(OUT)/$(PROJECT).n
+#neko-exe: neko
+#	haxelib run xcross $(OUT)/$(PROJECT).n
 	
-hxcpp: cyberchrist/*.hx
+cpp: $(SRC)
 	$(HX) -cpp out --remap neko:cpp
-	mv out/App $(OUT)/$(PROJECT)
+	mv out/CyberChrist ./$(PROJECT)
 
-build: neko
+build: app neko
+
+test: build
+	(cd test;neko ./../cyberchrist.n)
 
 clean:
 	rm -f $(OUT)/$(PROJECT).n
