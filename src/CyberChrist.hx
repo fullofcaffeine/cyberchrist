@@ -7,50 +7,64 @@ import haxe.Template;
 
 using StringTools;
 
-/*
+private typedef DateTime = {
+
+	var year : Int;
+	var month : Int;
+	var day : Int;
+
+	var utc : String;
+	var datestring : String;
+	//var pub : String;
+}
+
 private typedef Site = {
+
 	var title : String;
+	var date : DateTime;
 	var content : String;
-}
-*/
+	var html : String;
 
-private typedef PostDate = {
-	var year : String;
-	var month : String;
-	var day : String;
+	var layout : String;
+	var css : Array<String>;
+	var tags : Array<String>;
+	var description : String;
+	var author : String;
 }
 
-private typedef Post = {
+private typedef Post = { > Site,
 	var id : String;
-	var title : String;
-	var content : String;
-	var date : PostDate;
 	var path : String;
-	//var layout : String;
 }
 
 /**
-	Template fucker.
+	Cyberchrist template fucker.
+	Holy moly!!
 */
 class CyberChrist {
 	
-	public static var VERSION = "0.2.1";
+	public static var VERSION = "0.2.3";
 	
 	static var e_site = ~/ *---(.+) *--- *(.+)/ms;
 	static var e_header_line = ~/^ *([a-zA-Z0-9_\/\.\-]+) *: *([a-zA-Z0-9!_,\/\.\-\?\(\)\s]+) *$/;
 	static var e_post_filename = ~/^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])-([a-zA-Z0-9_,!\.\-\?\(\)\+]+)$/;
 	
+	static var numPostsShown = 23;
+	static var defaultSiteDescription : String = null;
+	static var defaultAuthor = "tong";
+
 	static var path_src : String;
 	static var path_dst : String;
 	static var tpl_site : Template;
 	static var posts : Array<Post>;
-	static var panda : panda.Format;
+	static var panda : Panda;
 	
 	
-	// ----- SYSTEM -----
+	// --------------- SYSTEM ---------------
 	
+	static inline function print( t : String ) Lib.print(t)
 	static inline function println( t : String ) Lib.println(t)
-	static function warn( t : String ) println( "Warning! "+t )
+	static inline function warn( t : String ) println( "Warning! "+t )
 	
 	static function writeFile( path : String, t : String ) {
 		var f = File.write( path, false );
@@ -58,12 +72,12 @@ class CyberChrist {
 		f.close();
 	}
 	
-	static function wipeDirectory( path : String ) {
+	static function clearDirectory( path : String ) {
 		for( f in FileSystem.readDirectory( path ) ) {
 			var p = path+"/"+f;
 			switch( FileSystem.kind( p ) ) {
 			case kdir :
-				wipeDirectory( p );
+				clearDirectory( p );
 				FileSystem.deleteDirectory( p );
 			case kfile :	
 				FileSystem.deleteFile( p );
@@ -89,42 +103,12 @@ class CyberChrist {
 		}
 	}
 	
-	
-	// ----- PROCESSING -----
-	
-	static function parseSite( path : String, name : String ) : Dynamic {
-		//trace( "Parsing site: "+path+"/"+name );
-		var fp = path+"/"+name;
-		var ft = File.getContent( fp );
-		if( !e_site.match( ft ) )
-			error( "invalid html template ("+fp+")" );
-		var header : Dynamic = {};
-		for( l in e_site.matched(1).trim().split("\n") ) {
-			if( ( l = l.trim() ) == "" )
-				continue;
-			if( !e_header_line.match( l ) )
-				error( "invalid template header ("+l+")" );
-			var id = e_header_line.matched(1);
-			var v = e_header_line.matched(2);
-			switch( id ) {
-			case "title": header.title = v;
-			case "layout": header.layout = v;
-			case "tags":
-				var r = ~/( *, *)/g;
-				if( !r.match( v ) ) {
-					warn( "invalid syntax for header tags: "+v );
-					continue;
-				}
-				header.tags = r.split(  v );
-			default :
-				trace( "unknown header key ("+id+")" );
-			}
-		}
-		var r = header;
-		r.content = e_site.matched(2);
-		return r;
-	}
-	
+
+	// --------------- SOURCE PROCESSING ---------------
+
+	/**
+		Run cyberchrist on given source directory
+	*/
 	static function processDirectory( path : String ) {
 		for( f in FileSystem.readDirectory( path ) ) {
 			if( f.startsWith(".") )
@@ -133,31 +117,32 @@ class CyberChrist {
 			switch( FileSystem.kind( fp ) ) {
 			case kfile :
 				if( f.startsWith( "_" ) ) {
-					//..
+					// ignore files starting with an underscore
 				} else {
 					var i = f.lastIndexOf(".");
 					if( i == -1 ) {
-						trace("iiiiiiiiiiiiiiiiiiiiiiiiiiiiiii");
 						continue;
 					} else {
 						var ext = f.substr( i+1 );
+						var ctx : Dynamic = createBaseContext();
 						switch( ext ) {
-						case "xml" :
+						case "xml","rss" :
 							var tpl = new Template( File.getContent(fp) );
-							var ctx : Dynamic = getBaseContext();
-							var _posts : Array<Dynamic> = ctx.posts;
-							for( p in _posts )
-								p.content = StringTools.htmlEscape( p.content );
+							var _posts : Array<Post> = ctx.posts;
+							for( p in _posts ) {
+								//p.content = StringTools.htmlEscape( p.content );
+							}
 							writeFile( path_dst+f, tpl.execute( ctx ) );
 						case "html" :
 							var site = parseSite( path, f );
 							var tpl = new Template( site.content );
-							var ctx = getBaseContext();
 							var content = tpl.execute( ctx );
-							ctx = getBaseContext();
+							ctx = createBaseContext();
 							ctx.content = content;
-							writeSite( path_dst+f, ctx );
+							ctx.html = content;
+							writeHTMLSite( path_dst+f, ctx );
 						//case "css" :
+						//TODO do css compressions here
 						//	File.copy( fp, path_dst+f );
 						default:
 							File.copy( fp, path_dst+f );
@@ -186,13 +171,59 @@ class CyberChrist {
 						FileSystem.createDirectory( d );
 					copyDataDirectory( f );
 				}
-			
 			default :
 			}
 		}
 	}
 	
-	static function processPosts( path : String ) {
+	/**
+		Parse file at given path into a cyberchrist.Site object
+	*/
+	static function parseSite( path : String, name : String ) : Site {
+		var fp = path+"/"+name;
+		var ft = File.getContent( fp );
+		if( !e_site.match( ft ) )
+			error( "invalid html template ("+fp+")" );
+		var s : Site = cast { css : new Array<String>()};
+		for( l in e_site.matched(1).trim().split("\n") ) {
+			if( ( l = l.trim() ) == "" )
+				continue;
+			if( !e_header_line.match( l ) )
+				error( "invalid template header ("+l+")" );
+			var id = e_header_line.matched(1);
+			var v = e_header_line.matched(2);
+			switch( id ) {
+			case "title":
+				s.title = v;
+			case "layout":
+				s.layout = v;
+			case "css":
+				s.css.push(v);
+			case "tags":
+				var r = ~/( *, *)/g;
+				if( !r.match( v ) ) {
+					warn( "invalid syntax for header tags: "+v );
+					continue;
+				}
+				s.tags = r.split(  v );
+			case "description":
+				s.description = v;
+			case "author":
+				s.author = v;
+			default :
+				trace( "unknown header key ("+id+")" );
+			}
+		}
+		//var s : Site = header;
+		s.content = e_site.matched(2);
+		return s;
+	}
+	
+	/**
+		Process/Print posts.
+		@path The path to the post source
+	*/
+	static function printPosts( path : String ) {
 		
 		for( f in FileSystem.readDirectory( path ) ) {
 			
@@ -201,34 +232,56 @@ class CyberChrist {
 			if( !e_post_filename.match( f ) )
 				error( "invalid post filename ["+f+"]" );
 			
-			var site : Dynamic = parseSite( path, f );
-			if( site.layout == null ) site.layout = "post";
-			site.content = panda.format( site.content );
+			// create site object
+			var site : Site = parseSite( path, f );
+			if( site.layout == null )
+				site.layout = "post";
+			
+			site.html = panda.format( site.content );
+			
+			var d_year = Std.parseInt( e_post_filename.matched(1) );
+			var d_month = Std.parseInt( e_post_filename.matched(2) );
+			var d_day = Std.parseInt( e_post_filename.matched(3) );
+			var utc = formatUTC( d_year, d_month, d_day );
+			var date : DateTime = {
+				year : d_year,
+				month : d_month,
+				day : d_day,
+				datestring : formatTimePart( d_year )+"-"+formatTimePart( d_month )+"-"+formatTimePart( d_day ),
+				utc : utc,
+			}
 
-			var post : Dynamic = {
+
+			var post : Post = {
 				id : e_post_filename.matched(4),
 				title : site.title,
-				content : site.content, //new Template( site.content ).execute( {} )
-				date : {
-					year : e_post_filename.matched(1),
-					month : e_post_filename.matched(2),
-					day : e_post_filename.matched(3)
-				}
+				content : site.html,  //StringTools.htmlUnescape( site.content ), //site.content, //new Template( site.content ).execute( {} )
+				html : site.html,
+				layout : null,
+				date : date,
+				tags : new Array<String>(),
+				description : (site.description==null) ? ((defaultSiteDescription==null)?null:defaultSiteDescription) : site.description,
+				author : (site.author==null) ? defaultAuthor : site.author,
+				//keywords : ["disktree","panzerkunst","art"],
+				css : new Array<String>(),
+				path : null
 			};
-			
-			var path = path_dst+post.date.year;
+
+			var path = path_dst + formatTimePart( d_year );
 			if( !FileSystem.exists( path ) ) FileSystem.createDirectory( path );
-			path = path+"/"+post.date.month;
+			path = path+"/" + formatTimePart( d_month );
 			if( !FileSystem.exists( path ) ) FileSystem.createDirectory( path );
-			path = path+"/"+post.date.day;
+			path = path+"/" + formatTimePart( d_day );
 			if( !FileSystem.exists( path ) ) FileSystem.createDirectory( path );
-			
-			path = post.date.year+"/"+post.date.month+"/"+post.date.day+"/"+post.id+".html";
-			
-			post.path = path;
+
+			post.path =
+				formatTimePart( d_year )+"/"+
+				formatTimePart( d_month )+"/"+
+				formatTimePart( d_day )+"/"+post.id+".html";
 			posts.push( post );
 		}
 		
+		// sort posts
 		posts.sort( function(a:Post,b:Post){
 			if( a.date.year > b.date.year ) return -1;
 			else if( a.date.year < b.date.year ) return 1;
@@ -243,24 +296,67 @@ class CyberChrist {
 			return 0;
 		});
 		
+		// print posts html
+		var tpl = parseSite( path_src+"_layout", "post.html" );
+		print("Posts");
 		for( p in posts ) {
-			
-			/*  
-			var path = path_dst+p.date.year;
-			if( !FileSystem.exists( path ) ) FileSystem.createDirectory( path );
-			path = path+"/"+p.date.month;
-			if( !FileSystem.exists( path ) ) FileSystem.createDirectory( path );
-			path = path+"/"+p.date.day;
-			if( !FileSystem.exists( path ) ) FileSystem.createDirectory( path );
-			*/
-			var ctx = attachContext( {}, p );
-			var tpl = parseSite( path_src+"_layout", "post.html" );
+			var ctx = mixContext( {}, p );
 			ctx.content = new Template( tpl.content ).execute( p  );
-			writeSite( path_dst + p.path, ctx );
+			writeHTMLSite( path_dst + p.path, ctx );
+			print(".");
 		}
+		print("("+posts.length+")");
 	}
 	
-	static inline function writeSite( path : String, ctx : Dynamic ) {
+	/**
+		Create the base context for printing templates of any file.
+	*/
+	static function createBaseContext( ?attach : Dynamic ) : Dynamic {
+		
+		var _posts = posts;
+		var _archive = new Array<Post>();
+		if( posts.length > numPostsShown ) {
+			_archive = _posts.slice( numPostsShown );
+			_posts = _posts.slice( 0, numPostsShown );
+		}
+
+		var n = Date.now();
+		var dy = n.getFullYear();
+		var dm = n.getMonth()+1;
+		var dd = n.getDate();
+		var now : DateTime = {
+			year : dy,
+			month : dm,
+			day : dd,
+			datestring : formatTimePart(dy)+"-"+formatTimePart(dm)+"-"+formatTimePart(dd),
+			utc : formatUTC( dy, dm, dd )
+		}
+
+		//TODO
+		var ctx = {
+			title : "blog.disktree.net",
+			url : "http://blog.disktree.net",
+			posts : _posts,
+			archive : _archive,
+			//description: "Panzerkunst motherfucker", //TODO
+			//keywords : ["disktree","panzerkunst","art"]
+			now : now,
+			cyberchrist_version : VERSION
+			//mobile:
+			//useragent
+		};
+		if( attach != null )
+			mixContext( ctx, attach );
+		return ctx;
+	}
+	
+	static function mixContext<A,B,R>( a : A, b : B ) : R {
+		for( f in Reflect.fields( b ) )
+			Reflect.setField( a, f, Reflect.field( b, f ) );
+		return cast a;
+	}
+	
+	static inline function writeHTMLSite( path : String, ctx : Dynamic ) {
 		var t = tpl_site.execute( ctx );
 		var a = new Array<String>();
 		for( l in t.split("\n") ) {
@@ -270,50 +366,26 @@ class CyberChrist {
 		writeFile( path, t );
 	}
 	
-	static function getBaseContext( ?attach : Dynamic ) : Dynamic {
-		var _posts = posts;
-		//var _archive : Array<Dynamic>;
-		if( posts.length > 10 ) {
-			//_archive = _posts.slice( 10 );
-			_posts = _posts.slice( 0 );
+	static function formatUTC( year : Int, month : Int, day : Int ) : String {
+		var s = new StringBuf();
+		s.add( year );
+		s.add( "-" );
+		s.add( formatTimePart(month) );
+		s.add( "-" );
+		s.add( formatTimePart(day) );
+		s.add( "T00:00:00Z" ); //TODO
+		return s.toString();
+	}
+
+	static function formatUTCDate( d : Date ) : String {
+		return formatUTC( d.getFullYear(), d.getMonth()+1, d.getDate() );
+	}
+
+	static function formatTimePart( i : Int ) : String {
+		if( i < 10 ) {
+			return "0"+i;
 		}
-		//( posts.length > 10 ) ? posts.slice( 0, 10 ) : posts;
-		var ctx = {
-			now : Date.now().toString(),
-			title : "disktree.net",
-			url : "http://blog.disktree.net",
-			posts : _posts,
-			//_archive : 
-			//description: "panzerkunst",
-			//keywords : ["disktree","panzerkunst","art"]
-		};
-		if( attach != null )
-			attachContext( ctx, attach );
-		return ctx;
-	}
-	
-	static function attachContext( a : Dynamic, b : Dynamic ) : Dynamic {
-		for( f in Reflect.fields( b ) ) Reflect.setField( a, f, Reflect.field( b, f ) );
-		return a;
-	}
-	
-	static function run() {
-		
-		var timestart = haxe.Timer.stamp();
-		
-		tpl_site = new Template( File.getContent( path_src+'_layout/site.html' ) );
-		posts = new Array();
-		panda = new panda.Format( {
-			path_img : "/img/",
-			createLink : function(s){return s;}
-		} );
-		
-		wipeDirectory( path_dst );
-		
-		processPosts( path_src+"_posts" );
-		processDirectory( path_src );
-		
-		println( "\nOK, "+Std.int((haxe.Timer.stamp()-timestart)*1000)+"ms\n" );
+		return Std.string(i);
 	}
 	
 	static function error( ?info : String ) {
@@ -323,15 +395,16 @@ class CyberChrist {
 	
 	static function main() {
 		
-		println( "------- CyberChrist "+VERSION+" -------" );
+		println( "CyberChrist "+VERSION );
 		
 		path_src = "src/";
 		path_dst = "www/";
 		
-		//TODO read cl args
-		
+		var timestart = haxe.Timer.stamp();
+
+		//TODO read cl params
 		//TODO read config file
-		
+
 		// test required files
 		var requiredFiles = [
 			path_src, path_dst,
@@ -348,7 +421,29 @@ class CyberChrist {
 			Sys.exit(0);
 		}
 		
-		run();
+		/////////////
+
+		posts = new Array();
+
+		// prepare templates
+		tpl_site = new Template( File.getContent( path_src+'_layout/site.html' ) );
+
+		// prepeare panda content formatter
+		panda = new Panda( {
+			path_img : "/img/",
+			createLink : function(s){return s;}
+		} );
+		
+		// clear target directory
+		clearDirectory( path_dst );
+		
+		// write posts
+		printPosts( path_src+"_posts" );
+
+		// write everything else
+		processDirectory( path_src );
+		
+		println( "\nOK, "+Std.int((haxe.Timer.stamp()-timestart)*1000)+"ms" );
 	}
 
 }
