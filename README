@@ -1,0 +1,29 @@
+
+CYBERCHRIST
+===========
+Static blog generator tool prayers.
+
+
+HOW IT WORKS
+------------
+Panda copies all files from given source path to given destination.
+Files ending with:
+.html get ...
+.css get ...
+.js get ...
+
+
+CONFIG FILES
+------------
+Config files most be textfiles with the name '_config' and reside and the source directory.
+If no file found a default configuration will get used.
+In this file you can specify key value pairs with the following known keys:
+url	: The http url of the website
+src	: The local source path
+out	: The local destination path
+
+
+USAGE
+-----
+panda ?[source path] ?[custom_config_file] ?[destinitation path]
+#panda ?[source path] ?[destinitation path]
