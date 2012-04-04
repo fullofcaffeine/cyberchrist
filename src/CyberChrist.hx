@@ -43,7 +43,7 @@ private typedef Post = { > Site,
 */
 class CyberChrist {
 	
-	public static var VERSION = "0.2.3";
+	public static inline var VERSION = "0.2.4";
 	
 	static var e_site = ~/ *---(.+) *--- *(.+)/ms;
 	static var e_header_line = ~/^ *([a-zA-Z0-9_\/\.\-]+) *: *([a-zA-Z0-9!_,\/\.\-\?\(\)\s]+) *$/;
@@ -333,6 +333,7 @@ class CyberChrist {
 		}
 
 		//TODO
+		// default context
 		var ctx = {
 			title : "blog.disktree.net",
 			url : "http://blog.disktree.net",
