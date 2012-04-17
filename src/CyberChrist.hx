@@ -75,6 +75,7 @@ class CyberChrist {
 	static function clearDirectory( path : String ) {
 		for( f in FileSystem.readDirectory( path ) ) {
 			var p = path+"/"+f;
+			/*
 			switch( FileSystem.kind( p ) ) {
 			case kdir :
 				clearDirectory( p );
@@ -82,6 +83,13 @@ class CyberChrist {
 			case kfile :	
 				FileSystem.deleteFile( p );
 			default :
+			}
+			*/
+			if( FileSystem.isDirectory( p ) ) {
+				clearDirectory( p );
+				FileSystem.deleteDirectory( p );
+			} else {
+				FileSystem.deleteFile( p );
 			}
 		}
 	}
@@ -91,14 +99,12 @@ class CyberChrist {
 		for( f in FileSystem.readDirectory( ps ) ) {
 			var s = ps+"/"+f;
 			var d = path_dst+path+"/"+f;
-			switch( FileSystem.kind( s ) ) {
-			case kdir :
+			if( FileSystem.isDirectory( s ) ) {
 				if( !FileSystem.exists(d) )
 					FileSystem.createDirectory( d );
 				copyDataDirectory( path+"/"+f );
-			case kfile :
+			} else {
 				File.copy( s, d );
-			default:
 			}
 		}
 	}
@@ -114,8 +120,29 @@ class CyberChrist {
 			if( f.startsWith(".") )
 				continue;
 			var fp = path+f;
-			switch( FileSystem.kind( fp ) ) {
-			case kfile :
+			if( FileSystem.isDirectory( fp ) ) {
+				if( f.startsWith( "_" ) ) {
+					//trace( "\t"+f );
+					/*   
+					switch( f.substr(1) ) {
+					case "include":
+						trace("TODO process include diectory" );
+					//case "layout":
+					case "posts":
+						trace("TODO process posts");
+					case "syndicate":
+						trace("TODO process syndication" );
+					default:
+						warn( "Unkown cyberchrist directory ("+f+")" );
+					}
+					*/
+				} else {
+					var d = path_dst+f;
+					if( !FileSystem.exists(d) )
+						FileSystem.createDirectory( d );
+					copyDataDirectory( f );
+				}
+			} else {
 				if( f.startsWith( "_" ) ) {
 					// ignore files starting with an underscore
 				} else {
@@ -149,29 +176,6 @@ class CyberChrist {
 						}
 					}
 				}
-			case kdir:
-				if( f.startsWith( "_" ) ) {
-					//trace( "\t"+f );
-					/*   
-					switch( f.substr(1) ) {
-					case "include":
-						trace("TODO process include diectory" );
-					//case "layout":
-					case "posts":
-						trace("TODO process posts");
-					case "syndicate":
-						trace("TODO process syndication" );
-					default:
-						warn( "Unkown cyberchrist directory ("+f+")" );
-					}
-					*/
-				} else {
-					var d = path_dst+f;
-					if( !FileSystem.exists(d) )
-						FileSystem.createDirectory( d );
-					copyDataDirectory( f );
-				}
-			default :
 			}
 		}
 	}
